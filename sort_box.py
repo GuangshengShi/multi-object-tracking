@@ -28,7 +28,7 @@ import glob
 import time
 import argparse
 from filterpy.kalman import KalmanFilter
-
+import warnings
 
 @jit
 def iou(bb_test, bb_gt):
@@ -74,6 +74,7 @@ def convert_bbox_to_z(bbox):
     y = bbox[1] + h / 2.
     s = w * h  # scale is just area
     r = w / float(h)
+    phi = bbox[4]
     return np.array([x, y, s, r, phi]).reshape((5, 1))
 
 def convert_x_to_bbox_(x, score=None):
@@ -98,6 +99,7 @@ def convert_x_to_bbox(x, score=None):
     """
     w = np.sqrt(x[2] * x[3])
     h = x[2] / w
+    phi = x[4]
     if(score is None):
         return (np.array([x[0] - w / 2.,
                         x[1] - h / 2.,
@@ -122,7 +124,9 @@ class KalmanBoxTracker(object):
         Initialises a tracker using initial bounding box.
         """
         # define constant velocity model
-        self.kf = KalmanFilter(dim_x=7, dim_z=4)
+        # dim_x = 4: tracking position and velocity in two dimensions
+        # dim_z = 2: position and velocity measurements
+        self.kf = KalmanFilter(dim_x=9, dim_z=5)
         # self.kf.F = np.array([[1, 0, 0, 0, 1, 0, 0],
         #                       [0, 1, 0, 0, 0, 1, 0],
         #                       [0, 0, 1, 0, 0, 0, 1],
@@ -142,12 +146,14 @@ class KalmanBoxTracker(object):
                               [0, 0, 0, 0, 0, 0, 0, 1, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 1]])
 
+        # warnings.warn(self.kf.F.shape)
+
         # dim H: (dim_z, dim_x)
-        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
-                              [0, 1, 0, 0, 0, 0, 0, 0],
-                              [0, 0, 1, 0, 0, 0, 0, 0],
-                              [0, 0, 0, 1, 0, 0, 0, 0],
-                              [0, 0, 0, 0, 1, 0, 0, 0]])
+        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 1, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 1, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 1, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 1, 0, 0, 0, 0]])
 
         self.kf.R[2:, 2:] *= 10.
         self.kf.P[5:, 5:] *= 1000.  # give high uncertainty to the unobservable initial velocities
@@ -347,10 +353,25 @@ if __name__ == '__main__':
             print("Processing %s." % (seq))
             for frame in range(int(seq_dets[:, 0].max())):
                 frame += 1  # detection and frame numbers begin at 1
+
                 dets = seq_dets[seq_dets[:, 0] == frame, 2:7]
                 # convert to [x1,y1,w,h] to [x1,y1,x2,y2]
-                dets[:, 2:4] += dets[:, 0:2]  # x2 = x1 + w, y2= y1 + h
+                # dets[:, 2:4] += dets[:, 0:2]  # x2 = x1 + w, y2= y1 + h
+
+                half_wh = dets[:, 2:4] / 2.
+                dets[:, 2:4] = dets[:, 0:2] + half_wh
+                dets[:, 0:2] = dets[:, 0:2] - half_wh
+
+
+                phi = 30
+                
+                # dets = np.insert(dets, [1], np.array([len(dets) * [angle]]).reshape(len(dets),1), axis=1)
+                dets = np.insert(dets, 5, phi, axis=1)
+
                 total_frames += 1
+
+                print(dets.shape)
+                print(dets)
 
                 if(display):
                     ax1 = fig.add_subplot(111, aspect='equal')
