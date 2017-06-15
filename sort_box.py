@@ -243,7 +243,7 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
 
 
 class Sort(object):
-    def __init__(self, max_age=1, min_hits=3):
+    def __init__(self, max_age=1, min_hits=3, iou_threshold = 0.3):
         """
         Sets key parameters for SORT
         """
@@ -251,6 +251,7 @@ class Sort(object):
         self.min_hits = min_hits
         self.trackers = []
         self.frame_count = 0
+        self.iou_threshold = iou_threshold
 
     def update(self, dets):
         """
@@ -363,8 +364,8 @@ if __name__ == '__main__':
                 dets[:, 0:2] = dets[:, 0:2] - half_wh
 
 
-                phi = 30
-                
+                phi = 0
+
                 # dets = np.insert(dets, [1], np.array([len(dets) * [angle]]).reshape(len(dets),1), axis=1)
                 dets = np.insert(dets, 5, phi, axis=1)
 
@@ -393,7 +394,9 @@ if __name__ == '__main__':
                     if(display):
                         d = d.astype(np.int32)
                         ax1.add_patch(patches.Rectangle(
-                            (d[0], d[1]), d[2] - d[0], d[3] - d[1], fill=False, lw=3, ec=colours[d[4] % 32, :]))
+                            (d[0], d[1]), d[2] - d[0], d[3] - d[1],
+                            fill=False, lw=3, ec=colours[d[4] % 32, :],
+                            angle=phi))
                         ax1.set_adjustable('box-forced')
 
                 if(display):
