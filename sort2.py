@@ -253,16 +253,14 @@ class Sort(object):
         for t, trk in enumerate(trks):
             pos = self.trackers[t].predict()[0]
             trk[:] = [pos[0], pos[1], pos[2], pos[3], pos[4], 0]
-            try:
-                if(np.any(np.isnan(pos))):
-                    to_del.append(t)
-            except:
-                print(pos)
+            if(np.any(np.isnan(pos))):
+                to_del.append(t)
+
         trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
         for t in reversed(to_del):
             self.trackers.pop(t)
 
-        print(dets.shape, trks.shape)
+        # print(dets.shape, trks.shape)
         matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(
             dets, trks)
 
@@ -356,7 +354,7 @@ def default_simulater():
                 dets = np.insert(dets, 4, phi, axis=1) #.astype(np.float64)
 
                 total_frames += 1
-                print(dets.shape)
+                # print(dets.shape)
 
 
                 if(display):
