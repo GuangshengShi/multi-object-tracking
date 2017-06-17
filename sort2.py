@@ -88,14 +88,14 @@ def convert_bbox_to_z(bbox):
     return np.array([x, y, s, r, phi]).reshape((5, 1))
 
 
-
 def convert_x_to_bbox(x, score=None):
     """
-    Takes a bounding box in the centre form [x,y,s,r] and returns it in the form
-      [x, y, w, h] where x, y is the center
+    Takes a bounding box in the centre form [x,y,s,r, phi] and returns it in the form
+      [x, y, w, h, phi] where x, y is the center
     """
     w = np.sqrt(x[2] * x[3])
     h = x[2] / w
+    phi = x[4]
     if(score is None):
         return np.array([x[0], x[1], w, h, phi ]).reshape((1, 5))
     else:
@@ -303,7 +303,8 @@ def parse_args():
     return args
 
 
-if __name__ == '__main__':
+
+def default_simulater():
     # all train
     sequences = [
         'PETS09-S2L1',
@@ -352,7 +353,7 @@ if __name__ == '__main__':
                 dets[:, 0:2] += dets[:, 2:4]/2.
 
                 phi = 0
-                dets = np.insert(dets, 4, phi, axis=1).astype(np.float64)
+                dets = np.insert(dets, 4, phi, axis=1) #.astype(np.float64)
 
                 total_frames += 1
                 print(dets.shape)
@@ -386,8 +387,9 @@ if __name__ == '__main__':
 
                     if(display):
                         d = d.astype(np.int32)
+                        # warnings.warn(str(track_id % 32))
                         ax1.add_patch(patches.Rectangle(
-                            (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
+                            (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[int(track_id % 32), :]))
                         ax1.set_adjustable('box-forced')
 
 
@@ -414,3 +416,7 @@ if __name__ == '__main__':
           (total_time, total_frames, total_frames / total_time))
     if(display):
         print("Note: to get real runtime results run without the option: --display")
+
+
+if __name__ == '__main__':
+    default_simulater()
