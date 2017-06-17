@@ -113,20 +113,29 @@ class KalmanBoxTracker(object):
         Initialises a tracker using initial bounding box.
         """
         # define constant velocity model
-        self.kf = KalmanFilter(dim_x=8, dim_z=5)
-        self.kf.F = np.array([[1, 0, 0, 0, 0, 1, 0, 0],
-                              [0, 1, 0, 0, 0, 0, 1, 0],
-                              [0, 0, 1, 0, 0, 0, 0, 1],
-                              [0, 0, 0, 1, 0, 0, 0, 0],
-                              [0, 0, 0, 0, 1, 0, 0, 0],
-                              [0, 0, 0, 0, 0, 1, 0, 0],
-                              [0, 0, 0, 0, 0, 0, 1, 0],
-                              [0, 0, 0, 0, 0, 0, 0, 1]])
-        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
-                              [0, 1, 0, 0, 0, 0, 0, 0],
-                              [0, 0, 1, 0, 0, 0, 0, 0],
-                              [0, 0, 0, 1, 0, 0, 0, 0],
-                              [0, 0, 0, 0, 1, 0, 0, 0]])
+        # originalx : [u, v, s, r, |dot{u}, \dot{v}, \dot{s}]
+        # adding \phi, \dot{\phi}
+        # new x: [u, v, s, r, \phi, |dot{u}, \dot{v}, \dot{s}, \dot{\phi}]
+        # assume r constant
+        # dim_x : length of x vector
+        # dim_z: numer of sensors (measurements) [x, y, s, r, phi]
+        self.kf = KalmanFilter(dim_x=9, dim_z=5)
+        self.kf.F = np.array([[1, 0, 0, 0, 0, 1, 0, 0, 0],
+                              [0, 1, 0, 0, 0, 0, 1, 0, 0],
+                              [0, 0, 1, 0, 0, 0, 0, 1, 0],
+                              [0, 0, 0, 1, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 1, 0, 0, 0, 1],
+                              [0, 0, 0, 0, 0, 1, 0, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 1, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 1, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 0, 1]])
+
+        # dim H: (dim_z, dim_x)
+        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 1, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 1, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 1, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 1, 0, 0, 0, 0]])
 
         self.kf.R[2:, 2:] *= 10.
         self.kf.P[5:, 5:] *= 1000.  # give high uncertainty to the unobservable initial velocities

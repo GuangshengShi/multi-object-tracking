@@ -111,7 +111,6 @@ class KalmanBoxTracker(object):
                               [0, 0, 0, 0, 0, 0, 0, 1, 0],
                               [0, 0, 0, 0, 0, 0, 0, 0, 1]])
 
-
         # dim H: (dim_z, dim_x)
         self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0],
                               [0, 1, 0, 0, 0, 0, 0, 0, 0],
