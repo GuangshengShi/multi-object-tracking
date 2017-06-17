@@ -31,6 +31,7 @@ from filterpy.kalman import KalmanFilter
 
 from collections import defaultdict, deque
 from functools import partial
+import warnings
 
 
 
@@ -56,14 +57,14 @@ def iou(bb_test_, bb_gt_):
 
 
 def convert_bbox_center_to_corners(bbox):
-    """[x,y,h,w] --> [x1,y1, x2, y2]"""
-    print(len(bbox))
-    if len(bbox) > 4:
-        x,y,h,w, score = bbox
+    """[x,y,h,w, phi] --> [x1,y1, x2, y2, phi]"""
+    warnings.warn(str(len(bbox)))
+    if len(bbox) > 5:
+        x,y,h,w, phi, score = bbox
     else:
-        x,y,h,w = bbox
+        x,y,h,w, phi = bbox
 
-    return [x - w/2., y-h/2, x + w/2., y + w/2.]
+    return [x - w/2., y-h/2, x + w/2., y + h/2.]
 
 
 def convert_bbox_to_z(bbox):
@@ -73,7 +74,7 @@ def convert_bbox_to_z(bbox):
       the aspect ratio
 
 
-      [x,y,w,h] -> [x,y,s,r]
+      [x,y,w,h,phi] -> [x,y,s,r,phi]
 
     """
     w = bbox[2]
@@ -82,7 +83,10 @@ def convert_bbox_to_z(bbox):
     y = bbox[1]
     s = w * h  # scale is just area
     r = w / float(h)
-    return np.array([x, y, s, r]).reshape((4, 1))
+    # return np.array([x, y, s, r]).reshape((4, 1))
+    phi = bbox[4]
+    return np.array([x, y, s, r, phi]).reshape((5, 1))
+
 
 
 def convert_x_to_bbox(x, score=None):
@@ -93,9 +97,9 @@ def convert_x_to_bbox(x, score=None):
     w = np.sqrt(x[2] * x[3])
     h = x[2] / w
     if(score is None):
-        return np.array([x[0], x[1], w, h ]).reshape((1, 4))
+        return np.array([x[0], x[1], w, h, phi ]).reshape((1, 5))
     else:
-        return np.array([x[0], x[1], w, h, score]).reshape((1, 5))
+        return np.array([x[0], x[1], w, h, phi, score]).reshape((1, 6))
 
 
 class KalmanBoxTracker(object):
@@ -109,26 +113,28 @@ class KalmanBoxTracker(object):
         Initialises a tracker using initial bounding box.
         """
         # define constant velocity model
-        self.kf = KalmanFilter(dim_x=7, dim_z=4)
-        self.kf.F = np.array([[1, 0, 0, 0, 1, 0, 0],
-                              [0, 1, 0, 0, 0, 1, 0],
-                              [0, 0, 1, 0, 0, 0, 1],
-                              [0, 0, 0, 1, 0, 0, 0],
-                              [0, 0, 0, 0, 1, 0, 0],
-                              [0, 0, 0, 0, 0, 1, 0],
-                              [0, 0, 0, 0, 0, 0, 1]])
-        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0],
-                              [0, 1, 0, 0, 0, 0, 0],
-                              [0, 0, 1, 0, 0, 0, 0],
-                              [0, 0, 0, 1, 0, 0, 0]])
+        self.kf = KalmanFilter(dim_x=8, dim_z=4)
+        self.kf.F = np.array([[1, 0, 0, 0, 0, 1, 0, 0],
+                              [0, 1, 0, 0, 0, 0, 1, 0],
+                              [0, 0, 1, 0, 0, 0, 0, 1],
+                              [0, 0, 0, 1, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 1, 0, 0, 0],
+                              [0, 0, 0, 0, 0, 1, 0, 0],
+                              [0, 0, 0, 0, 0, 0, 1, 0],
+                              [0, 0, 0, 0, 0, 0, 0, 1]])
+        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
+                              [0, 1, 0, 0, 0, 0, 0, 0],
+                              [0, 0, 1, 0, 0, 0, 0, 0],
+                              [0, 0, 0, 1, 0, 0, 0, 0],
+                              [0, 0, 0, 0, 1, 0, 0, 0]])
 
         self.kf.R[2:, 2:] *= 10.
-        self.kf.P[4:, 4:] *= 1000.  # give high uncertainty to the unobservable initial velocities
+        self.kf.P[5:, 5:] *= 1000.  # give high uncertainty to the unobservable initial velocities
         self.kf.P *= 10.
         self.kf.Q[-1, -1] *= 0.01
-        self.kf.Q[4:, 4:] *= 0.01
+        self.kf.Q[5:, 5:] *= 0.01
 
-        self.kf.x[:4] = convert_bbox_to_z(bbox)
+        self.kf.x[:5] = convert_bbox_to_z(bbox)
         self.time_since_update = 0
         self.id = KalmanBoxTracker.count
         KalmanBoxTracker.count += 1
@@ -151,8 +157,8 @@ class KalmanBoxTracker(object):
         """
         Advances the state vector and returns the predicted bounding box estimate.
         """
-        if((self.kf.x[6] + self.kf.x[2]) <= 0):
-            self.kf.x[6] *= 0.0
+        if((self.kf.x[7] + self.kf.x[2]) <= 0):
+            self.kf.x[7] *= 0.0
         self.kf.predict()
         self.age += 1
         if(self.time_since_update > 0):
@@ -231,15 +237,18 @@ class Sort(object):
         """
         self.frame_count += 1
         # get predicted locations from existing trackers.
-        trks = np.zeros((len(self.trackers), 5))
+        trks = np.zeros((len(self.trackers), 6))
 
         to_del = []
         ret = []
         for t, trk in enumerate(trks):
             pos = self.trackers[t].predict()[0]
-            trk[:] = [pos[0], pos[1], pos[2], pos[3], 0]
-            if(np.any(np.isnan(pos))):
-                to_del.append(t)
+            trk[:] = [pos[0], pos[1], pos[2], pos[3], pos[4], 0]
+            try:
+                if(np.any(np.isnan(pos))):
+                    to_del.append(t)
+            except:
+                print(pos)
         trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
         for t in reversed(to_del):
             self.trackers.pop(t)
@@ -256,7 +265,7 @@ class Sort(object):
 
         # create and initialise new trackers for unmatched detections
         for i in unmatched_dets:
-            trk = KalmanBoxTracker(dets[i, :])
+            trk = KalmanBoxTracker(dets[i, :5])
             self.trackers.append(trk)
         i = len(self.trackers)
         for trk in reversed(self.trackers):
@@ -316,7 +325,7 @@ if __name__ == '__main__':
         os.makedirs('output')
 
     for seq in sequences:
-        mot_tracker = Sort(max_age=5, min_hits=10)  # create instance of the SORT tracker
+        mot_tracker = Sort() #max_age=5, min_hits=10  # create instance of the SORT tracker
         seq_dets = np.loadtxt(
             'data/%s/det.txt' %
             (seq), delimiter=',')  # load detections
@@ -332,9 +341,13 @@ if __name__ == '__main__':
 
                 # convert to [x1,y1,w,h] to [x,y,w,h]
                 dets[:, 0:2] += dets[:, 2:4]/2.
-                # dets[:, 0:2] += dets[:, 2:4]/2.
+
+                phi = 0
+                dets = np.insert(dets, 4, phi, axis=1).astype(np.float64)
 
                 total_frames += 1
+                print(dets.shape)
+
 
                 if(display):
                     ax1 = fig.add_subplot(111, aspect='equal')
@@ -344,24 +357,30 @@ if __name__ == '__main__':
                     ax1.imshow(im)
                     plt.title(seq + ' Tracked Targets')
 
-                start_time = time.time()
-                trackers = mot_tracker.update(dets)
-                cycle_time = time.time() - start_time
-                total_time += cycle_time
+                try:
+                    start_time = time.time()
+                    trackers = mot_tracker.update(dets)
+                    cycle_time = time.time() - start_time
+                    total_time += cycle_time
+                except:
+                    raise
 
                 tracked_ids = []
                 for d in trackers:
                     print(
                         '%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' %
                         (frame, d[4], d[0], d[1], d[2] - d[0], d[3] - d[1]), file=out_file)
+
+                    track_id = d[5]
+                    tracked_ids.append(track_id)
+                    tracked_tragets[track_id].append(d)
+
                     if(display):
                         d = d.astype(np.int32)
                         ax1.add_patch(patches.Rectangle(
-                            (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[d[4] % 32, :]))
+                            (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
                         ax1.set_adjustable('box-forced')
 
-                    tracked_ids.append(d[4])
-                    tracked_tragets[d[4]].append(d)
 
                 # Remove id of not tracked anymore
                 for id in tracked_tragets.copy():
@@ -372,8 +391,9 @@ if __name__ == '__main__':
                     for _,ds in tracked_tragets.items():
                         for d in ds:
                             d = d.astype(np.int32)
+                            track_id = d[5]
                             ax1.add_patch(patches.Rectangle(
-                                (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[d[4] % 32, :]))
+                                (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
                             ax1.set_adjustable('box-forced')
 
                 if(display):
