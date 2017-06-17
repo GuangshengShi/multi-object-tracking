@@ -55,16 +55,61 @@ def iou(bb_test_, bb_gt_):
               + (bb_gt[2] - bb_gt[0]) * (bb_gt[3] - bb_gt[1]) - wh)
     return(o)
 
+@jit
+def squared_diff(a, b):
+    return (a - b) **(2)
+
+@jit
+def euclidean(bb_test_, bb_gt_):
+    """
+    Computes IUO between two bboxes in the form [x,y,w,h]
+
+    """
+    x1, y1, s1, r1, phi1 = get_bbox(bb_test_)
+    x2, y2, s2, r2, phi2 = get_bbox(bb_gt_)
+
+    # o = (np.sum(squared_diff(i,j) for (i,j) in [(x1, x2), (y1, y2), (phi1, phi2)]))
+
+    o = 0.
+    for (i,j) in [(x1, x2), (y1, y2), (phi1, phi2)]:
+        o += squared_diff(i,j)
+    o = o ** (-1/2.)
+    # print('distance {}'.format(o))
+    return(o)
+
+@jit
+def distance(bb_test_, bb_gt_):
+    method = 'euclidean'
+    if method == 'iou':
+        # iou is currently NOT defined for bboxes in different orientations
+        o = iou(bb_test_, bb_gt_)
+    elif method == 'euclidean':
+        o = euclidean(bb_test_, bb_gt_)
+    return o
+
 
 def convert_bbox_center_to_corners(bbox):
-    """[x,y,h,w, phi] --> [x1,y1, x2, y2, phi]"""
+    """[x,y,h,w, phi[,score]] --> [x1,y1, x2, y2"""
     warnings.warn(str(len(bbox)))
     if len(bbox) > 5:
         x,y,h,w, phi, score = bbox
     else:
         x,y,h,w, phi = bbox
-
     return [x - w/2., y-h/2, x + w/2., y + h/2.]
+
+
+
+@jit
+def get_bbox(bbox):
+    """Drop score from bbox (if any, last index)
+    [x,y,h,w, phi[,score]] --> [x1,y1, x2, y2"""
+    # warnings.warn(str(len(bbox)))
+    if len(bbox) > 5:
+        x,y,h,w, phi, score = bbox
+    else:
+        x,y,h,w, phi = bbox
+    return [x, y, h, w, phi]
+
 
 
 def convert_bbox_to_z(bbox):
@@ -183,7 +228,7 @@ class KalmanBoxTracker(object):
         return convert_x_to_bbox(self.kf.x)
 
 
-def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
+def associate_detections_to_trackers(detections, trackers, distance_threshold=0.3):
     """
     Assigns detections to tracked object (both represented as bounding boxes)
 
@@ -192,12 +237,12 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
     if(len(trackers) == 0):
         return np.empty((0, 2), dtype=int), np.arange(
             len(detections)), np.empty((0, 5), dtype=int)
-    iou_matrix = np.zeros((len(detections), len(trackers)), dtype=np.float32)
+    distance_matrix = np.zeros((len(detections), len(trackers)), dtype=np.float32)
 
     for d, det in enumerate(detections):
         for t, trk in enumerate(trackers):
-            iou_matrix[d, t] = iou(det, trk)
-    matched_indices = linear_assignment(-iou_matrix)
+            distance_matrix[d, t] = distance(det, trk)
+    matched_indices = linear_assignment(-distance_matrix)
 
     unmatched_detections = []
     for d, det in enumerate(detections):
@@ -208,10 +253,10 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
         if(t not in matched_indices[:, 1]):
             unmatched_trackers.append(t)
 
-    # filter out matched with low IOU
+    # filter out matched with low distance
     matches = []
     for m in matched_indices:
-        if(iou_matrix[m[0], m[1]] < iou_threshold):
+        if(distance_matrix[m[0], m[1]] < distance_threshold):
             unmatched_detections.append(m[0])
             unmatched_trackers.append(m[1])
         else:
@@ -226,7 +271,7 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
 
 
 class Sort(object):
-    def __init__(self, max_age=1, min_hits=3):
+    def __init__(self, max_age=1, min_hits=3, distance_threshold=.3):
         """
         Sets key parameters for SORT
         """
@@ -234,6 +279,7 @@ class Sort(object):
         self.min_hits = min_hits
         self.trackers = []
         self.frame_count = 0
+        self.distance_threshold = distance_threshold
 
     def update(self, dets):
         """
@@ -262,7 +308,7 @@ class Sort(object):
 
         # print(dets.shape, trks.shape)
         matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(
-            dets, trks)
+            dets, trks, distance_threshold=self.distance_threshold)
 
         # update matched trackers with assigned detections
         for t, trk in enumerate(self.trackers):
@@ -333,7 +379,7 @@ def default_simulater():
         os.makedirs('output')
 
     for seq in sequences:
-        mot_tracker = Sort() #max_age=5, min_hits=10  # create instance of the SORT tracker
+        mot_tracker = Sort(distance_threshold=.03) #max_age=5, min_hits=10  # create instance of the SORT tracker
         seq_dets = np.loadtxt(
             'data/%s/det.txt' %
             (seq), delimiter=',')  # load detections
