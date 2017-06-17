@@ -47,21 +47,6 @@ def iou(bb_test, bb_gt):
     return(o)
 
 
-def convert_bbox_to_z_(bbox):
-    """
-    Takes a bounding box in the form [x1,y1,x2,y2] and returns z in the form
-      [x,y,s,r] where x,y is the centre of the box and s is the scale/area and r is
-      the aspect ratio
-    """
-    w = bbox[2] - bbox[0]
-    h = bbox[3] - bbox[1]
-    x = bbox[0] + w / 2.
-    y = bbox[1] + h / 2.
-    s = w * h  # scale is just area
-    r = w / float(h)
-    return np.array([x, y, s, r]).reshape((4, 1))
-
-
 def convert_bbox_to_z(bbox):
     """
     Takes a bounding box in the form [x1,y1,x2,y2, phi] and returns z in the form
@@ -76,20 +61,6 @@ def convert_bbox_to_z(bbox):
     r = w / float(h)
     phi = bbox[4]
     return np.array([x, y, s, r, phi]).reshape((5, 1))
-
-def convert_x_to_bbox_(x, score=None):
-    """
-    Takes a bounding box in the centre form [x,y,s,r] and returns it in the form
-      [x1,y1,x2,y2] where x1,y1 is the top left and x2,y2 is the bottom right
-    """
-    w = np.sqrt(x[2] * x[3])
-    h = x[2] / w
-    if(score is None):
-        return np.array([x[0] - w / 2., x[1] - h / 2., x[0] +
-                         w / 2., x[1] + h / 2.]).reshape((1, 4))
-    else:
-        return np.array([x[0] - w / 2., x[1] - h / 2., x[0] +
-                         w / 2., x[1] + h / 2., score]).reshape((1, 5))
 
 
 def convert_x_to_bbox(x, score=None):
@@ -118,70 +89,6 @@ class KalmanBoxTracker(object):
     This class represents the internel state of individual tracked objects observed as bbox.
     """
     count = 0
-
-    def ___init__(self, bbox):
-        """
-        Initialises a tracker using initial bounding box.
-        """
-        # define constant velocity model
-        # dim_x = 4: tracking position and velocity in two dimensions
-        # dim_z = 2: position and velocity measurements
-        self.kf = KalmanFilter(dim_x=7, dim_z=4)
-        # self.kf = KalmanFilter(dim_x=9, dim_z=5)
-
-        self.kf.F = np.array([[1, 0, 0, 0, 1, 0, 0],
-                              [0, 1, 0, 0, 0, 1, 0],
-                              [0, 0, 1, 0, 0, 0, 1],
-                              [0, 0, 0, 1, 0, 0, 0],
-                              [0, 0, 0, 0, 1, 0, 0],
-                              [0, 0, 0, 0, 0, 1, 0],
-                              [0, 0, 0, 0, 0, 0, 1]])
-        # original: [u, v, s, r, |dot{u}, \dot{v}, \dot{s}]
-        # new: [u, v, s, r, \phi, |dot{u}, \dot{v}, \dot{s}, \dot{\phi}]
-        # self.kf.F = np.array([[1, 0, 0, 0, 0, 1, 0, 0, 0],
-        #                       [0, 1, 0, 0, 0, 0, 1, 0, 0],
-        #                       [0, 0, 1, 0, 0, 0, 0, 1, 0],
-        #                       [0, 0, 0, 1, 0, 0, 0, 0, 1],
-        #                       [0, 0, 0, 0, 1, 0, 0, 0, 0],
-        #                       [0, 0, 0, 0, 0, 1, 0, 0, 0],
-        #                       [0, 0, 0, 0, 0, 0, 1, 0, 0],
-        #                       [0, 0, 0, 0, 0, 0, 0, 1, 0],
-        #                       [0, 0, 0, 0, 0, 0, 0, 0, 1]])
-
-        # warnings.warn(self.kf.F.shape)
-
-        # dim H: (dim_z, dim_x)
-        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0],
-                              [0, 1, 0, 0, 0, 0, 0],
-                              [0, 0, 1, 0, 0, 0, 0],
-                              [0, 0, 0, 1, 0, 0, 0]])
-        # self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0],
-        #                       [0, 1, 0, 0, 0, 0, 0, 0, 0],
-        #                       [0, 0, 1, 0, 0, 0, 0, 0, 0],
-        #                       [0, 0, 0, 1, 0, 0, 0, 0, 0],
-        #                       [0, 0, 0, 0, 1, 0, 0, 0, 0]])
-
-        self.kf.R[2:, 2:] *= 10.
-        self.kf.P[4:, 4:] *= 1000.  # give high uncertainty to the unobservable initial velocities
-        self.kf.P *= 10.
-        self.kf.Q[-1, -1] *= 0.01
-        self.kf.Q[4:, 4:] *= 0.01
-        self.kf.x[:4] = convert_bbox_to_z(bbox)
-
-        # self.kf.R[2:, 2:] *= 10.
-        # self.kf.P[5:, 5:] *= 1000.  # give high uncertainty to the unobservable initial velocities
-        # self.kf.P *= 10.
-        # self.kf.Q[-1, -1] *= 0.01
-        # self.kf.Q[5:, 5:] *= 0.01
-        # self.kf.x[:5] = convert_bbox_to_z(bbox)
-
-        self.time_since_update = 0
-        self.id = KalmanBoxTracker.count
-        KalmanBoxTracker.count += 1
-        self.history = []
-        self.hits = 0
-        self.hit_streak = 0
-        self.age = 0
 
     def __init__(self, bbox):
         """
@@ -243,6 +150,7 @@ class KalmanBoxTracker(object):
         """
         # if((self.kf.x[6] + self.kf.x[2]) <= 0):
         #     self.kf.x[6] *= 0.0
+        # [x, y, s, r, \phi, \dot{x}, \dot{y}, \dot{s}, \dot{\phi}]
         if((self.kf.x[7] + self.kf.x[2]) <= 0):
             self.kf.x[7] *= 0.0
         self.kf.predict()
@@ -324,17 +232,20 @@ class Sort(object):
         """
         self.frame_count += 1
         # get predicted locations from existing trackers.
-        trks = np.zeros((len(self.trackers), 5))
+        trks = np.zeros((len(self.trackers), 6))
+        # print(trks)
         to_del = []
         ret = []
         for t, trk in enumerate(trks):
             pos = self.trackers[t].predict()[0]
-            trk[:] = [pos[0], pos[1], pos[2], pos[3], 0]
+            trk[:] = [pos[0], pos[1], pos[2], pos[3], 0, pos[4]]
             if(np.any(np.isnan(pos))):
                 to_del.append(t)
         trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
         for t in reversed(to_del):
             self.trackers.pop(t)
+
+        # print(dets.shape, trks.shape)
         matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(
             dets, trks)
 
@@ -346,7 +257,8 @@ class Sort(object):
 
         # create and initialise new trackers for unmatched detections
         for i in unmatched_dets:
-            trk = KalmanBoxTracker(dets[i, :])
+            # trk = KalmanBoxTracker(dets[i, :])
+            trk = KalmanBoxTracker(dets[i, [0,1,2,3,5]])
             self.trackers.append(trk)
         i = len(self.trackers)
         for trk in reversed(self.trackers):
@@ -417,12 +329,12 @@ if __name__ == '__main__':
 
                 dets = seq_dets[seq_dets[:, 0] == frame, 2:7]
                 # convert to [x1,y1,w,h] to [x1,y1,x2,y2]
-                # dets[:, 2:4] += dets[:, 0:2]  # x2 = x1 + w, y2= y1 + h
+                dets[:, 2:4] += dets[:, 0:2]  # x2 = x1 + w, y2= y1 + h
 
-                half_wh = dets[:, 2:4] / 2.
-                dets[:, 2:4] = dets[:, 0:2] + half_wh
-                dets[:, 0:2] = dets[:, 0:2] - half_wh
-
+                # [x, y, w, h] to [x1, y1, x2, y2] asuming [x, y] is the center
+                # half_wh = dets[:, 2:4] / 2.
+                # dets[:, 2:4] = dets[:, 0:2] + half_wh
+                # dets[:, 0:2] = dets[:, 0:2] - half_wh
 
                 phi = 0
 
@@ -431,8 +343,8 @@ if __name__ == '__main__':
 
                 total_frames += 1
 
-                print(dets.shape)
-                print(dets)
+                # print(dets.shape)
+                # print(dets)
 
                 if(display):
                     ax1 = fig.add_subplot(111, aspect='equal')
