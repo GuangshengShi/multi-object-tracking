@@ -379,13 +379,13 @@ def default_simulater():
         os.makedirs('output')
 
     for seq in sequences:
-        mot_tracker = Sort(distance_threshold=.03) #max_age=5, min_hits=10  # create instance of the SORT tracker
+        mot_tracker = Sort(max_age=50, min_hits=10, distance_threshold=.03)   # create instance of the SORT tracker
         seq_dets = np.loadtxt(
             'data/%s/det.txt' %
             (seq), delimiter=',')  # load detections
         with open('output/%s.txt' % (seq), 'w') as out_file:
             print("Processing %s." % (seq))
-            tracked_tragets = defaultdict(partial(deque, maxlen=5))
+            tracked_tragets = defaultdict(partial(deque, maxlen=10))
 
             for frame in range(int(seq_dets[:, 0].max())):
                 frame += 1  # detection and frame numbers begin at 1
@@ -432,9 +432,11 @@ def default_simulater():
                     if(display):
                         d = d.astype(np.int32)
                         # warnings.warn(str(track_id % 32))
+                        x, y, w, h = d[0], d[1], d[2], d[3]
                         ax1.add_patch(patches.Rectangle(
-                            (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[int(track_id % 32), :]))
+                            (x, y), w , h , fill=False, lw=3, ec=colours[int(track_id % 32), :]))
                         ax1.set_adjustable('box-forced')
+                        # ax1.add_patch(patches.Arrow(x, y, dx, dy, width=1.0, **kwargs))
 
 
                 # Remove id of not tracked anymore
@@ -447,9 +449,18 @@ def default_simulater():
                         for d in ds:
                             d = d.astype(np.int32)
                             track_id = d[5]
+                            # ax1.add_patch(patches.Rectangle(
+                            #     (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
+                            # ax1.set_adjustable('box-forced')
+
                             ax1.add_patch(patches.Rectangle(
-                                (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
+                                (d[0], d[1]), 1,  1, fill=False, lw=3, ec=colours[track_id % 32, :]))
                             ax1.set_adjustable('box-forced')
+
+
+                            # warnings.warn(colours[track_id % 32, :])
+                            # ax1.plot(d[0], d[1], colours[track_id % 32, :])
+
 
                 if(display):
                     fig.canvas.flush_events()
