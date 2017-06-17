@@ -238,7 +238,7 @@ class Sort(object):
         ret = []
         for t, trk in enumerate(trks):
             pos = self.trackers[t].predict()[0]
-            trk[:] = [pos[0], pos[1], pos[2], pos[3], 0, pos[4]]
+            trk[:] = [pos[0], pos[1], pos[2], pos[3], pos[4], 0]
             if(np.any(np.isnan(pos))):
                 to_del.append(t)
         trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
@@ -258,7 +258,7 @@ class Sort(object):
         # create and initialise new trackers for unmatched detections
         for i in unmatched_dets:
             # trk = KalmanBoxTracker(dets[i, :])
-            trk = KalmanBoxTracker(dets[i, [0,1,2,3,5]])
+            trk = KalmanBoxTracker(dets[i, [0,1,2,3,4]])
             self.trackers.append(trk)
         i = len(self.trackers)
         for trk in reversed(self.trackers):
@@ -339,11 +339,11 @@ if __name__ == '__main__':
                 phi = 0
 
                 # dets = np.insert(dets, [1], np.array([len(dets) * [angle]]).reshape(len(dets),1), axis=1)
-                dets = np.insert(dets, 5, phi, axis=1)
+                dets = np.insert(dets, 4, phi, axis=1)
 
                 total_frames += 1
 
-                # print(dets.shape)
+                print(dets.shape)
                 # print(dets)
 
                 if(display):
@@ -367,7 +367,7 @@ if __name__ == '__main__':
                         d = d.astype(np.int32)
                         ax1.add_patch(patches.Rectangle(
                             (d[0], d[1]), d[2] - d[0], d[3] - d[1],
-                            fill=False, lw=3, ec=colours[d[4] % 32, :],
+                            fill=False, lw=3, ec=colours[d[5] % 32, :],
                             angle=phi))
                         ax1.set_adjustable('box-forced')
 
