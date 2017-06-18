@@ -34,14 +34,14 @@ from functools import partial
 import warnings
 
 
-
 @jit
 def iou(bb_test_, bb_gt_):
     """
     Computes IUO between two bboxes in the form [x,y,w,h]
 
     """
-    bb_test = convert_bbox_center_to_corners(bb_test_)# convert to [x1,y1,w,h] to [x1,y1,x2,y2]
+    bb_test = convert_bbox_center_to_corners(
+        bb_test_)  # convert to [x1,y1,w,h] to [x1,y1,x2,y2]
     bb_gt = convert_bbox_center_to_corners(bb_gt_)
 
     xx1 = np.maximum(bb_test[0], bb_gt[0])
@@ -55,9 +55,11 @@ def iou(bb_test_, bb_gt_):
               + (bb_gt[2] - bb_gt[0]) * (bb_gt[3] - bb_gt[1]) - wh)
     return(o)
 
+
 @jit
 def squared_diff(a, b):
-    return (a - b) **(2)
+    return (a - b) ** (2)
+
 
 @jit
 def euclidean(bb_test_, bb_gt_):
@@ -71,11 +73,12 @@ def euclidean(bb_test_, bb_gt_):
     # o = (np.sum(squared_diff(i,j) for (i,j) in [(x1, x2), (y1, y2), (phi1, phi2)]))
 
     o = 0.
-    for (i,j) in [(x1, x2), (y1, y2), (phi1, phi2)]:
-        o += squared_diff(i,j)
-    o = o ** (-1/2.)
+    for (i, j) in [(x1, x2), (y1, y2), (phi1, phi2)]:
+        o += squared_diff(i, j)
+    o = o ** (-1 / 2.)
     # print('distance {}'.format(o))
     return(o)
+
 
 @jit
 def distance(bb_test_, bb_gt_):
@@ -92,11 +95,10 @@ def convert_bbox_center_to_corners(bbox):
     """[x,y,h,w, phi[,score]] --> [x1,y1, x2, y2"""
     # warnings.warn(str(len(bbox)))
     if len(bbox) > 5:
-        x,y,h,w, phi, score = bbox
+        x, y, h, w, phi, score = bbox
     else:
-        x,y,h,w, phi = bbox
-    return [x - w/2., y-h/2, x + w/2., y + h/2.]
-
+        x, y, h, w, phi = bbox
+    return [x - w / 2., y - h / 2, x + w / 2., y + h / 2.]
 
 
 @jit
@@ -105,11 +107,10 @@ def get_bbox(bbox):
     [x,y,h,w, phi[,score]] --> [x1,y1, x2, y2"""
     # warnings.warn(str(len(bbox)))
     if len(bbox) > 5:
-        x,y,h,w, phi, score = bbox
+        x, y, h, w, phi, score = bbox
     else:
-        x,y,h,w, phi = bbox
+        x, y, h, w, phi = bbox
     return [x, y, h, w, phi]
-
 
 
 def convert_bbox_to_z(bbox):
@@ -142,7 +143,7 @@ def convert_x_to_bbox(x, score=None):
     h = x[2] / w
     phi = x[4]
     if(score is None):
-        return np.array([x[0], x[1], w, h, phi ]).reshape((1, 5))
+        return np.array([x[0], x[1], w, h, phi]).reshape((1, 5))
     else:
         return np.array([x[0], x[1], w, h, phi, score]).reshape((1, 6))
 
@@ -228,7 +229,8 @@ class KalmanBoxTracker(object):
         return convert_x_to_bbox(self.kf.x)
 
 
-def associate_detections_to_trackers(detections, trackers, distance_threshold=0.3):
+def associate_detections_to_trackers(
+        detections, trackers, distance_threshold=0.3):
     """
     Assigns detections to tracked object (both represented as bounding boxes)
 
@@ -237,13 +239,14 @@ def associate_detections_to_trackers(detections, trackers, distance_threshold=0.
     if(len(trackers) == 0):
         return np.empty((0, 2), dtype=int), np.arange(
             len(detections)), np.empty((0, 5), dtype=int)
-    distance_matrix = np.zeros((len(detections), len(trackers)), dtype=np.float32)
+    distance_matrix = np.zeros(
+        (len(detections), len(trackers)), dtype=np.float32)
 
     for d, det in enumerate(detections):
         for t, trk in enumerate(trackers):
             distance_matrix[d, t] = distance(det, trk)
-            print('distance of new det:{} to tracker {} = {}'.format(d, t, distance_matrix[d, t]))
-
+            print('distance of new det:{} to tracker {} = {}'.format(
+                d, t, distance_matrix[d, t]))
 
     # warnings.warn(str(distance_matrix))
     # warnings.warn('tracking')
@@ -310,7 +313,6 @@ class Sort(object):
                 to_del.append(t)
                 # warnings.warn('popping trackers {}'.format(t))
 
-
         trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
         for t in reversed(to_del):
             self.trackers.pop(t)
@@ -372,7 +374,6 @@ def parse_args():
     return args
 
 
-
 def default_simulater():
     # all train
     sequences = [
@@ -409,7 +410,11 @@ def default_simulater():
         os.makedirs('output')
 
     for seq in sequences:
-        mot_tracker = Sort(max_age=50, min_hits=10, distance_threshold=distance_threshold)   # create instance of the SORT tracker
+        # create instance of the SORT tracker
+        mot_tracker = Sort(
+            max_age=50,
+            min_hits=10,
+            distance_threshold=distance_threshold)
         seq_dets = np.loadtxt(
             'data/%s/det.txt' %
             (seq), delimiter=',')  # load detections
@@ -424,14 +429,13 @@ def default_simulater():
                 # dets[:, 2:4] += dets[:, 0:2]
 
                 # convert to [x1,y1,w,h] to [x,y,w,h]
-                dets[:, 0:2] += dets[:, 2:4]/2.
+                dets[:, 0:2] += dets[:, 2:4] / 2.
 
                 phi = 0
-                dets = np.insert(dets, 4, phi, axis=1) #.astype(np.float64)
+                dets = np.insert(dets, 4, phi, axis=1)  # .astype(np.float64)
 
                 total_frames += 1
                 # print(dets)
-
 
                 if(display):
                     ax1 = fig.add_subplot(111, aspect='equal')
@@ -446,7 +450,7 @@ def default_simulater():
                     trackers = mot_tracker.update(dets)
                     cycle_time = time.time() - start_time
                     total_time += cycle_time
-                except:
+                except BaseException:
                     raise
 
                 tracked_ids = []
@@ -464,10 +468,9 @@ def default_simulater():
                         # warnings.warn(str(track_id % 32))
                         x, y, w, h = d[0], d[1], d[2], d[3]
                         ax1.add_patch(patches.Rectangle(
-                            (x, y), w , h , fill=False, lw=3, ec=colours[int(track_id % 32), :]))
+                            (x, y), w, h, fill=False, lw=3, ec=colours[int(track_id % 32), :]))
                         ax1.set_adjustable('box-forced')
                         # ax1.add_patch(patches.Arrow(x, y, dx, dy, width=1.0, **kwargs))
-
 
                 # Remove id of not tracked anymore
                 for id in tracked_tragets.copy():
@@ -484,13 +487,11 @@ def default_simulater():
                             # ax1.set_adjustable('box-forced')
 
                             ax1.add_patch(patches.Rectangle(
-                                (d[0], d[1]), 1,  1, fill=False, lw=3, ec=colours[track_id % 32, :]))
+                                (d[0], d[1]), 1, 1, fill=False, lw=3, ec=colours[track_id % 32, :]))
                             ax1.set_adjustable('box-forced')
-
 
                             # warnings.warn(colours[track_id % 32, :])
                             # ax1.plot(d[0], d[1], colours[track_id % 32, :])
-
 
                 if(display):
                     fig.canvas.flush_events()
@@ -520,10 +521,9 @@ def box_simulator():
         plt.ion()
         fig = plt.figure()
 
-
-    mot_tracker = Sort(distance_threshold=distance_threshold)   # create instance of the SORT tracker
+    # create instance of the SORT tracker
+    mot_tracker = Sort(distance_threshold=distance_threshold)
     tracked_tragets = defaultdict(partial(deque, maxlen=5))
-
 
     for dets in dots.box_generator():
 
@@ -531,7 +531,6 @@ def box_simulator():
         total_frames += 1
         # print(dets.shape)
         print(dets)
-
 
         if(display):
             ax1 = fig.add_subplot(111, aspect='equal')
@@ -553,11 +552,10 @@ def box_simulator():
                 # warnings.warn(str(track_id % 32))
                 x, y, w, h, rz = d[0], d[1], d[2], d[3], d[4]
                 ax1.add_patch(patches.Rectangle(
-                    (x, y), w , h , fill=False, lw=3, ec=colours[int(track_id % 32), :],
+                    (x, y), w, h, fill=False, lw=3, ec=colours[int(track_id % 32), :],
                     angle=rz, label=str(track_id)))
                 ax1.set_adjustable('box-forced')
                 # ax1.add_patch(patches.Arrow(x, y, dx, dy, width=1.0, **kwargs))
-
 
         # Remove id of not tracked anymore
         for id in tracked_tragets.copy():
@@ -582,7 +580,6 @@ def box_simulator():
 
                     # warnings.warn(colours[track_id % 32, :])
                     # ax1.plot(d[0], d[1], colours[track_id % 32, :])
-
 
         if(display):
             fig.canvas.flush_events()
