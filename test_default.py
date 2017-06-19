@@ -1,4 +1,8 @@
-"""Multi object tracking test."""
+"""Multi object tracking test.
+
+
+
+"""
 from __future__ import print_function
 
 import os.path
@@ -148,12 +152,12 @@ def default_simulator():
                         for d in ds:
                             d = d.astype(np.int32)
                             track_id = d[5]
-                            # ax1.add_patch(patches.Rectangle(
-                            #     (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
+                            ax1.add_patch(patches.Rectangle(
+                                (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
                             # ax1.set_adjustable('box-forced')
 
-                            ax1.add_patch(patches.Rectangle(
-                                (d[0], d[1]), 1, 1, fill=False, lw=3, ec=colours[track_id % 32, :]))
+                            # ax1.add_patch(patches.Rectangle(
+                            #     (d[0], d[1]), 1, 1, fill=False, lw=3, ec=colours[track_id % 32, :]))
                             ax1.set_adjustable('box-forced')
 
                             # warnings.warn(colours[track_id % 32, :])

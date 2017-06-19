@@ -67,7 +67,9 @@ def squared_diff(a, b):
 @jit
 def euclidean(bb_test_, bb_gt_):
     """
-    Computes rmse between two bboxes in the form [x,y,w,h]
+    Computes similarity using euclidean distance between
+    two bboxes in the form [x, y, s, r, yaw]
+    using  1/ (1 + euclidean_dist)
 
     """
     x1, y1, s1, r1, yaw1 = get_bbox(bb_test_)
@@ -76,16 +78,17 @@ def euclidean(bb_test_, bb_gt_):
     # o = (np.sum(squared_diff(i,j) for (i,j) in [(x1, x2), (y1, y2), (yaw1, yaw2)]))
     # this is not jit compatible. resort to using for loop:
 
-    o = 1e-6
-    for (i, j) in [(x1, x2), (y1, y2), (yaw1, yaw2)]:
-        o += squared_diff(i, j)
-    o = o ** (-1 / 2.)
+    output = 0.
+    for (i, j) in [(x1, x2), (y1, y2), (yaw1, yaw2), (s1, s2), (r1, r2)]:
+        output += squared_diff(i, j)
+    output = 1./(1. + (output ** (1 / 2.)))
     # print('distance {}'.format(o))
-    return(o)
+    return(output)
 
 
 @jit
 def distance(bb_test_, bb_gt_):
+    # hard coded selection of method to compute similarity
     method = 'euclidean'
     if method == 'iou':
         # iou is currently NOT defined for bboxes in different orientations
@@ -168,7 +171,7 @@ class KalmanBoxTracker(object):
         # new x: [u, v, s, r, \yaw, |dot{u}, \dot{v}, \dot{s}, \dot{\yaw}]
         # assume r constant
         # dim_x : length of x vector
-        # dim_z: numer of sensors (measurements) [x, y, s, r, yaw]
+        # dim_z: numer of sensors measurements [x, y, s, r, yaw]
         self.kf = KalmanFilter(dim_x=9, dim_z=5)
         self.kf.F = np.array([[1, 0, 0, 0, 0, 1, 0, 0, 0],
                               [0, 1, 0, 0, 0, 0, 1, 0, 0],
