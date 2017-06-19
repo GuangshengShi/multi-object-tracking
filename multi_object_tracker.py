@@ -1,19 +1,22 @@
-"""
-    SORT: A Simple, Online and Realtime Tracker
-    Copyright (C) 2016 Alex Bewley alex@dynamicdetection.com
+"""Multi object tracking using Kalman Filter.
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+This is a modification of:
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+SORT: A Simple, Online and Realtime Tracker
+Copyright (C) 2016 Alex Bewley alex@dynamicdetection.com.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 from __future__ import print_function
 
@@ -64,16 +67,17 @@ def squared_diff(a, b):
 @jit
 def euclidean(bb_test_, bb_gt_):
     """
-    Computes IUO between two bboxes in the form [x,y,w,h]
+    Computes rmse between two bboxes in the form [x,y,w,h]
 
     """
-    x1, y1, s1, r1, phi1 = get_bbox(bb_test_)
-    x2, y2, s2, r2, phi2 = get_bbox(bb_gt_)
+    x1, y1, s1, r1, yaw1 = get_bbox(bb_test_)
+    x2, y2, s2, r2, yaw2 = get_bbox(bb_gt_)
 
-    # o = (np.sum(squared_diff(i,j) for (i,j) in [(x1, x2), (y1, y2), (phi1, phi2)]))
+    # o = (np.sum(squared_diff(i,j) for (i,j) in [(x1, x2), (y1, y2), (yaw1, yaw2)]))
+    # this is not jit compatible. resort to using for loop:
 
-    o = 0.
-    for (i, j) in [(x1, x2), (y1, y2), (phi1, phi2)]:
+    o = 1e-6
+    for (i, j) in [(x1, x2), (y1, y2), (yaw1, yaw2)]:
         o += squared_diff(i, j)
     o = o ** (-1 / 2.)
     # print('distance {}'.format(o))
@@ -92,25 +96,25 @@ def distance(bb_test_, bb_gt_):
 
 
 def convert_bbox_center_to_corners(bbox):
-    """[x,y,h,w, phi[,score]] --> [x1,y1, x2, y2"""
+    """[x,y,h,w, yaw[,score]] --> [x1,y1, x2, y2"""
     # warnings.warn(str(len(bbox)))
     if len(bbox) > 5:
-        x, y, h, w, phi, score = bbox
+        x, y, h, w, yaw, score = bbox
     else:
-        x, y, h, w, phi = bbox
+        x, y, h, w, yaw = bbox
     return [x - w / 2., y - h / 2, x + w / 2., y + h / 2.]
 
 
 @jit
 def get_bbox(bbox):
     """Drop score from bbox (if any, last index)
-    [x,y,h,w, phi[,score]] --> [x1,y1, x2, y2"""
+    [x,y,h,w, yaw[,score]] --> [x1,y1, x2, y2"""
     # warnings.warn(str(len(bbox)))
     if len(bbox) > 5:
-        x, y, h, w, phi, score = bbox
+        x, y, h, w, yaw, score = bbox
     else:
-        x, y, h, w, phi = bbox
-    return [x, y, h, w, phi]
+        x, y, h, w, yaw = bbox
+    return [x, y, h, w, yaw]
 
 
 def convert_bbox_to_z(bbox):
@@ -120,7 +124,7 @@ def convert_bbox_to_z(bbox):
       the aspect ratio
 
 
-      [x,y,w,h,phi] -> [x,y,s,r,phi]
+      [x,y,w,h,yaw] -> [x,y,s,r,yaw]
 
     """
     w = bbox[2]
@@ -130,22 +134,22 @@ def convert_bbox_to_z(bbox):
     s = w * h  # scale is just area
     r = w / float(h)
     # return np.array([x, y, s, r]).reshape((4, 1))
-    phi = bbox[4]
-    return np.array([x, y, s, r, phi]).reshape((5, 1))
+    yaw = bbox[4]
+    return np.array([x, y, s, r, yaw]).reshape((5, 1))
 
 
 def convert_x_to_bbox(x, score=None):
     """
-    Takes a bounding box in the centre form [x,y,s,r, phi] and returns it in the form
-      [x, y, w, h, phi] where x, y is the center
+    Takes a bounding box in the centre form [x,y,s,r, yaw] and returns it in the form
+      [x, y, w, h, yaw] where x, y is the center
     """
     w = np.sqrt(x[2] * x[3])
     h = x[2] / w
-    phi = x[4]
+    yaw = x[4]
     if(score is None):
-        return np.array([x[0], x[1], w, h, phi]).reshape((1, 5))
+        return np.array([x[0], x[1], w, h, yaw]).reshape((1, 5))
     else:
-        return np.array([x[0], x[1], w, h, phi, score]).reshape((1, 6))
+        return np.array([x[0], x[1], w, h, yaw, score]).reshape((1, 6))
 
 
 class KalmanBoxTracker(object):
@@ -160,11 +164,11 @@ class KalmanBoxTracker(object):
         """
         # define constant velocity model
         # originalx : [u, v, s, r, |dot{u}, \dot{v}, \dot{s}]
-        # adding \phi, \dot{\phi}
-        # new x: [u, v, s, r, \phi, |dot{u}, \dot{v}, \dot{s}, \dot{\phi}]
+        # adding \yaw, \dot{\yaw}
+        # new x: [u, v, s, r, \yaw, |dot{u}, \dot{v}, \dot{s}, \dot{\yaw}]
         # assume r constant
         # dim_x : length of x vector
-        # dim_z: numer of sensors (measurements) [x, y, s, r, phi]
+        # dim_z: numer of sensors (measurements) [x, y, s, r, yaw]
         self.kf = KalmanFilter(dim_x=9, dim_z=5)
         self.kf.F = np.array([[1, 0, 0, 0, 0, 1, 0, 0, 0],
                               [0, 1, 0, 0, 0, 0, 1, 0, 0],
@@ -245,8 +249,8 @@ def associate_detections_to_trackers(
     for d, det in enumerate(detections):
         for t, trk in enumerate(trackers):
             distance_matrix[d, t] = distance(det, trk)
-            print('distance of new det:{} to tracker {} = {}'.format(
-                d, t, distance_matrix[d, t]))
+            # print('distance of new det:{} to tracker {} = {}'.format(
+            #     d, t, distance_matrix[d, t]))
 
     # warnings.warn(str(distance_matrix))
     # warnings.warn('tracking')
@@ -293,7 +297,7 @@ class Sort(object):
     def update(self, dets):
         """
         Params:
-          dets - a numpy array of detections in the format [[x,y,w,h,score],[x,y,w,h,score],...]
+          dets - a numpy array of detections in the format [[x,y,w,h, yaw, score],[x,y,w,h,score],...]
         Requires: this method must be called once for each frame even with empty detections.
         Returns the a similar array, where the last column is the object ID.
 
@@ -374,230 +378,5 @@ def parse_args():
     return args
 
 
-def default_simulater():
-    # all train
-    sequences = [
-        'PETS09-S2L1',
-        'TUD-Campus',
-        'TUD-Stadtmitte',
-        'ETH-Bahnhof',
-        'ETH-Sunnyday',
-        'ETH-Pedcross2',
-        'KITTI-13',
-        'KITTI-17',
-        'ADL-Rundle-6',
-        'ADL-Rundle-8',
-        'Venice-2']
-    args = parse_args()
-    display = args.display
-    show_false_positives = args.show_false_positives
-    distance_threshold = args.distance_threshold
-    if show_false_positives:
-        distance_threshold = 0.
-
-    phase = 'train'
-    total_time = 0.0
-    total_frames = 0
-    colours = np.random.rand(32, 3)  # used only for display
-    if(display):
-        if not os.path.exists('mot_benchmark'):
-            print('\n\tERROR: mot_benchmark link not found!\n\n    Create a symbolic link to the MOT benchmark\n    (https://motchallenge.net/data/2D_MOT_2015/#download). E.g.:\n\n    $ ln -s /path/to/MOT2015_challenge/2DMOT2015 mot_benchmark\n\n')
-            exit()
-        plt.ion()
-        fig = plt.figure()
-
-    if not os.path.exists('output'):
-        os.makedirs('output')
-
-    for seq in sequences:
-        # create instance of the SORT tracker
-        mot_tracker = Sort(
-            max_age=50,
-            min_hits=10,
-            distance_threshold=distance_threshold)
-        seq_dets = np.loadtxt(
-            'data/%s/det.txt' %
-            (seq), delimiter=',')  # load detections
-        with open('output/%s.txt' % (seq), 'w') as out_file:
-            print("Processing %s." % (seq))
-            tracked_tragets = defaultdict(partial(deque, maxlen=10))
-
-            for frame in range(int(seq_dets[:, 0].max())):
-                frame += 1  # detection and frame numbers begin at 1
-                dets = seq_dets[seq_dets[:, 0] == frame, 2:7]
-                # convert to [x1,y1,w,h] to [x1,y1,x2,y2]
-                # dets[:, 2:4] += dets[:, 0:2]
-
-                # convert to [x1,y1,w,h] to [x,y,w,h]
-                dets[:, 0:2] += dets[:, 2:4] / 2.
-
-                phi = 0
-                dets = np.insert(dets, 4, phi, axis=1)  # .astype(np.float64)
-
-                total_frames += 1
-                # print(dets)
-
-                if(display):
-                    ax1 = fig.add_subplot(111, aspect='equal')
-                    fn = 'mot_benchmark/%s/%s/img1/%06d.jpg' % (
-                        phase, seq, frame)
-                    im = io.imread(fn)
-                    ax1.imshow(im)
-                    plt.title(seq + ' Tracked Targets')
-
-                try:
-                    start_time = time.time()
-                    trackers = mot_tracker.update(dets)
-                    cycle_time = time.time() - start_time
-                    total_time += cycle_time
-                except BaseException:
-                    raise
-
-                tracked_ids = []
-                for d in trackers:
-                    print(
-                        '%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' %
-                        (frame, d[4], d[0], d[1], d[2] - d[0], d[3] - d[1]), file=out_file)
-
-                    track_id = d[5]
-                    tracked_ids.append(track_id)
-                    tracked_tragets[track_id].append(d)
-
-                    if(display):
-                        d = d.astype(np.int32)
-                        # warnings.warn(str(track_id % 32))
-                        x, y, w, h = d[0], d[1], d[2], d[3]
-                        ax1.add_patch(patches.Rectangle(
-                            (x, y), w, h, fill=False, lw=3, ec=colours[int(track_id % 32), :]))
-                        ax1.set_adjustable('box-forced')
-                        # ax1.add_patch(patches.Arrow(x, y, dx, dy, width=1.0, **kwargs))
-
-                # Remove id of not tracked anymore
-                for id in tracked_tragets.copy():
-                    if id not in tracked_ids:
-                        tracked_tragets.pop(id, None)
-
-                if(display):
-                    for _, ds in tracked_tragets.items():
-                        for d in ds:
-                            d = d.astype(np.int32)
-                            track_id = d[5]
-                            # ax1.add_patch(patches.Rectangle(
-                            #     (d[0], d[1]), d[2] , d[3] , fill=False, lw=3, ec=colours[track_id % 32, :]))
-                            # ax1.set_adjustable('box-forced')
-
-                            ax1.add_patch(patches.Rectangle(
-                                (d[0], d[1]), 1, 1, fill=False, lw=3, ec=colours[track_id % 32, :]))
-                            ax1.set_adjustable('box-forced')
-
-                            # warnings.warn(colours[track_id % 32, :])
-                            # ax1.plot(d[0], d[1], colours[track_id % 32, :])
-
-                if(display):
-                    fig.canvas.flush_events()
-                    plt.draw()
-                    ax1.cla()
-
-    print("Total Tracking took: %.3f for %d frames or %.1f FPS" %
-          (total_time, total_frames, total_frames / total_time))
-    if(display):
-        print("Note: to get real runtime results run without the option: --display")
-
-
-def tracker(detections):
-    """Tracks detections
-
-    Args:
-        detections (:obj:`numpy.array`) : array of detections
-            [x, y, w, h, rz, score]
-    """
-
-    args = parse_args()
-    display = args.display
-    show_false_positives = args.show_false_positives
-    distance_threshold = args.distance_threshold
-    if show_false_positives:
-        distance_threshold = 0.
-
-    total_time = 0.0
-    total_frames = 0
-    colours = np.random.rand(32, 3)  # used only for display
-    if(display):
-        plt.ion()
-        fig = plt.figure()
-
-    # create instance of the SORT tracker
-    mot_tracker = Sort(distance_threshold=distance_threshold)
-    tracked_tragets = defaultdict(partial(deque, maxlen=5))
-
-    for dets in detections:
-
-        # print(dets)
-        total_frames += 1
-        # print(dets.shape)
-        print(dets)
-
-        if(display):
-            ax1 = fig.add_subplot(111, aspect='equal')
-            ax1 = plt.axes(xlim=(0, 100), ylim=(0, 100))
-
-        start_time = time.time()
-        trackers = mot_tracker.update(dets)
-        cycle_time = time.time() - start_time
-        total_time += cycle_time
-
-        tracked_ids = []
-        for d in trackers:
-            track_id = d[5]
-            tracked_ids.append(track_id)
-            tracked_tragets[track_id].append(d)
-
-            if(display):
-                d = d.astype(np.int32)
-                # warnings.warn(str(track_id % 32))
-                x, y, w, h, rz = d[0], d[1], d[2], d[3], d[4]
-                ax1.add_patch(patches.Rectangle(
-                    (x, y), w, h, fill=False, lw=3, ec=colours[int(track_id % 32), :],
-                    angle=rz, label=str(track_id)))
-                ax1.set_adjustable('box-forced')
-                # ax1.add_patch(patches.Arrow(x, y, dx, dy, width=1.0, **kwargs))
-
-        # Remove id of not tracked anymore
-        for id in tracked_tragets.copy():
-            if id not in tracked_ids:
-                tracked_tragets.pop(id, None)
-
-        if(display):
-            for _, ds in tracked_tragets.items():
-                for d in ds:
-                    d = d.astype(np.int32)
-                    x, y, w, h, rz, track_id = d[0], d[1], d[2], d[3], d[4], d[5]
-
-                    ax1.add_patch(patches.Rectangle(
-                        (x, y), w, h, fill=False, lw=3, ec=colours[int(track_id % 32), :],
-                        angle=rz))
-                    ax1.set_adjustable('box-forced')
-
-                    # ax1.add_patch(patches.Rectangle(
-                    #     (d[0], d[1]), .01,  .01, fill=False, lw=3,
-                    #     ec=colours[track_id % 32, :]))
-                    ax1.set_adjustable('box-forced')
-
-                    # warnings.warn(colours[track_id % 32, :])
-                    # ax1.plot(d[0], d[1], colours[track_id % 32, :])
-
-        if(display):
-            fig.canvas.flush_events()
-            plt.draw()
-            ax1.cla()
-
-
 if __name__ == '__main__':
-    # default_simulater()
-
-    try:
-        import dots
-        tracker(dots.box_generator())
-    except (KeyboardInterrupt, SystemExit):
-        exit()
-        raise
+    pass

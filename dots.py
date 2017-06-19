@@ -26,10 +26,7 @@ import time
 
 # Initializing number of dots
 N = 5
-XC = 5
-YC = 5
-R = 1
-R_SQR = R **2
+
 
 # Creating dot class
 class Dot(object):
@@ -55,17 +52,6 @@ class Dot(object):
         #     return v - rand/10.
         return (np.random.random_sample() - 0.5) * self._vel_scale /10.
 
-    # def move(self) :
-    #     if np.random.random_sample() < 0.95:
-    #         self.x += self.velx
-    #         self.y += self.vely
-    #     else:
-    #         self.velx = self.generate_new_vel()
-    #         self.vely = self.generate_new_vel()
-    #         self.x += self.velx
-    #         self.y += self.vely
-        # self.check_inside_circle()
-
 
 class Box(Dot):
     def __init__(self, ind, xmax=10, ymax=10):
@@ -74,7 +60,6 @@ class Box(Dot):
         self.w = self.generate_len()
         self.h = self.generate_len()
         self.rz = self.generate_rotation()
-
         self.dot_rz = self.generate_angular_vel()
 
     def generate_len(self):
@@ -133,7 +118,6 @@ def simulate_dots():
     e = plt.Circle((XC, YC), R, color='b', fill=False)
     # ax.add_artist(circle)
 
-
     # animation function.  This is called sequentially
     def animate(i):
         for dot in dots:
@@ -148,10 +132,8 @@ def simulate_dots():
     plt.show()
 
 def simulate_boxes(display=True):
-    # Initializing dots
+    # Initializing boxes
     dets = [Box(i, xmax=100, ymax=100) for i in range(N)]
-
-
 
     # First set up the figure, the axis, and the plot element we want to animate
     if display:
@@ -199,7 +181,7 @@ def simulate_boxes(display=True):
 
 
 def box_generator():
-    # Initializing dots
+    # Initializing boxes
     dets = [Box(i, xmax=100, ymax=100) for i in range(N)]
 
     # for i in range(100):
@@ -221,16 +203,14 @@ def box_generator():
         for e,d in enumerate(dets):
             d.move()
             x, y, w, h, rz = d.x, d.y, d.w, d.h, d.rz
-
             bboxes.append([x, y, w, h, rz, 0])
 
         time.sleep(.5)
 
         # add false positives
-        for i in range(30):
-            if np.random.sample() < .1:
-                box = Box(len(dets), xmax=100, ymax=100)
-                bboxes.append([box.x, box.y, box.w, box.h, box.rz, 0])
+        for i in range(5):
+            box = Box(len(dets), xmax=100, ymax=100)
+            bboxes.append([box.x, box.y, box.w, box.h, box.rz, 0])
 
         # random signal dropping
         for i in range(len(copy.copy(bboxes))):
@@ -239,9 +219,8 @@ def box_generator():
                 try:
                     del bboxes[id]
                     print('dropped signal {}'.format(id))
-                except:
+                except BaseException:
                     pass
-
 
         yield np.asarray(bboxes)
 
