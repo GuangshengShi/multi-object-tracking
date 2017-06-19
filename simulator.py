@@ -4,25 +4,10 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
-
-
-from numba import jit
-import os.path
-import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from skimage import io
-from sklearn.utils.linear_assignment_ import linear_assignment
-import glob
 import time
-import argparse
-from filterpy.kalman import KalmanFilter
 
-from collections import defaultdict, deque
-from functools import partial
-import warnings
 import copy
-import time
 
 # Initializing number of dots
 N = 5
@@ -45,11 +30,6 @@ class Dot(object):
 
 
     def generate_new_vel(self):
-        # rand = np.random.random_sample() - 0.5 / 5
-        # if rand > 0.5:
-        #     return v + rand/ 10.
-        # else:
-        #     return v - rand/10.
         return (np.random.random_sample() - 0.5) * self._vel_scale /10.
 
 

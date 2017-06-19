@@ -300,7 +300,10 @@ class Sort(object):
     def update(self, dets):
         """
         Params:
-          dets - a numpy array of detections in the format [[x,y,w,h, yaw, score],[x,y,w,h, yaw,score],...]
+            dets (:obj:`numpy.array`) : a numpy array of detections
+                in the format [[x,y,w,h, yaw, score],
+                                [x,y,w,h, yaw,score],...]
+                                
         Requires: this method must be called once for each frame even with empty detections.
         Returns the a similar array, where the last column is the object ID.
 
@@ -354,7 +357,6 @@ class Sort(object):
         if(len(ret) > 0):
             return np.concatenate(ret)
         return np.empty((0, 5))
-
 
 
 if __name__ == '__main__':
