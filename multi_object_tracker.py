@@ -122,8 +122,8 @@ def get_bbox(bbox):
 
 def convert_bbox_to_z(bbox):
     """
-    Takes a bounding box in the form [x1,y1,x2,y2] and returns z in the form
-      [x,y,s,r] where x,y is the centre of the box and s is the scale/area and r is
+    Takes a bounding box in the form [x,y,w,h,yaw] and returns z in the form
+      [x,y,s,r,yaw] where x,y is the centre of the box and s is the scale/area and r is
       the aspect ratio
 
 
@@ -300,7 +300,7 @@ class Sort(object):
     def update(self, dets):
         """
         Params:
-          dets - a numpy array of detections in the format [[x,y,w,h, yaw, score],[x,y,w,h,score],...]
+          dets - a numpy array of detections in the format [[x,y,w,h, yaw, score],[x,y,w,h, yaw,score],...]
         Requires: this method must be called once for each frame even with empty detections.
         Returns the a similar array, where the last column is the object ID.
 
@@ -355,30 +355,6 @@ class Sort(object):
             return np.concatenate(ret)
         return np.empty((0, 5))
 
-
-def parse_args():
-    """Parse input arguments."""
-    parser = argparse.ArgumentParser(description='SORT demo')
-    parser.add_argument(
-        '--display',
-        dest='display',
-        help='Display online tracker output (slow) [False]',
-        action='store_true')
-
-    parser.add_argument(
-        '--show-false-positives',
-        dest='show_false_positives',
-        help='Display online tracker output (slow) [False]',
-        action='store_true')
-
-    parser.add_argument(
-        '-t', '--distance-threshold',
-        dest='distance_threshold',
-        help='Distance Threshold',
-        default=0.03,
-        type=float)
-    args = parser.parse_args()
-    return args
 
 
 if __name__ == '__main__':
