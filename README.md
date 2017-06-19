@@ -8,6 +8,11 @@ by Alex Bewley  [DynamicDetection.com](http://www.dynamicdetection.com)
 you can read more about this in [README_SORT](README_SORT.md)
 
 
+# Input
+
+input is a numpy array of detections in the format [[x,y,w,h, yaw, score],[x,y,w,h, yaw,score],...]
+
+
 ### Dependencies:
 
 0. [`scikit-learn`](http://scikit-learn.org/stable/)
