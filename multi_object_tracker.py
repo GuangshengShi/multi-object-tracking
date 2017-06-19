@@ -504,8 +504,13 @@ def default_simulater():
         print("Note: to get real runtime results run without the option: --display")
 
 
-def box_simulator():
-    import dots
+def tracker(detections):
+    """Tracks detections
+
+    Args:
+        detections (:obj:`numpy.array`) : array of detections
+            [x, y, w, h, rz, score]
+    """
 
     args = parse_args()
     display = args.display
@@ -525,7 +530,7 @@ def box_simulator():
     mot_tracker = Sort(distance_threshold=distance_threshold)
     tracked_tragets = defaultdict(partial(deque, maxlen=5))
 
-    for dets in dots.box_generator():
+    for dets in detections:
 
         # print(dets)
         total_frames += 1
@@ -591,7 +596,8 @@ if __name__ == '__main__':
     # default_simulater()
 
     try:
-        box_simulator()
+        import dots
+        tracker(dots.box_generator())
     except (KeyboardInterrupt, SystemExit):
         exit()
         raise
