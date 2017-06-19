@@ -20,6 +20,9 @@ you can read more about this in [README_SORT](README_SORT.md)
 $ pip search filterpy
 ```
 
+( complete list of requirements in `requirements.txt`, install using
+    `$pip install -r requirements.txt `)
+
 
 ### Demo:
 
@@ -29,7 +32,7 @@ To run the tracker with the simulated detections:
 $ cd path/to/sort
 $ python test.py --display  
 
-# threshold can be set using '-t' flag 
+# threshold can be set using '-t' flag
 
 ```
 
