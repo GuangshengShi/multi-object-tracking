@@ -12,7 +12,7 @@ from collections import defaultdict, deque
 from functools import partial
 
 
-import dots
+import simulator
 import multi_object_tracker as mot
 
 
@@ -48,7 +48,7 @@ def tracker(detections):
         detections (:obj:`numpy.array`) : array of detections
             each row of array : [x, y, w, h, rz, score]
 
-    
+
     """
 
     args = parse_args()
@@ -138,7 +138,7 @@ if __name__ == '__main__':
 
     try:
 
-        tracker(dots.box_generator())
+        tracker(simulator.box_generator())
     except (KeyboardInterrupt, SystemExit):
         exit()
         raise
