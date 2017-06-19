@@ -1,15 +1,12 @@
 
 This Multi Object Tracker implementation is primarily based on SORT, with some
 modifications to the state vector to adapt for bounding boxes with different
-orientations.
+orientations
 
-A simple online and realtime tracking (SORT) algorithm for 2D multiple object tracking in video sequences.
-See an example [video here](https://motchallenge.net/movies/ETH-Linthescher-SORT.mp4).
-
-By Alex Bewley  
-[DynamicDetection.com](http://www.dynamicdetection.com)
-
+SORT: A simple online and realtime tracking (SORT) algorithm for 2D multiple object tracking in video sequences,
+by Alex Bewley  [DynamicDetection.com](http://www.dynamicdetection.com)
 you can read more about this in [README_SORT](README_SORT.md)
+
 
 ### Dependencies:
 
