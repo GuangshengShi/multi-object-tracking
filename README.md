@@ -27,8 +27,12 @@ To run the tracker with the simulated detections:
 
 ```
 $ cd path/to/sort
-$ python test.py
+$ python test.py --display  
+
+# threshold can be set using '-t' flag 
+
 ```
+
 
 
 To run tracker on detections from original paper, and display the results you need to:
